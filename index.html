@@ -1534,15 +1534,12 @@ void main() {
       <div class="resume-modal__backdrop" data-resume-close></div>
       <div class="resume-modal__panel">
         <div class="resume-modal__actions">
-          <a href="assets/王施婕-简历.pdf" download="王施婕-UI设计师-简历.pdf" class="resume-modal__action resume-modal__action--download" title="下载 PDF" aria-label="下载 PDF">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          </a>
           <button type="button" class="resume-modal__action resume-modal__close" data-resume-close aria-label="关闭" title="关闭">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
         <div class="resume-modal__body">
-          <iframe src="assets/王施婕-简历.pdf#toolbar=0&amp;navpanes=0&amp;statusbar=0&amp;messages=0&amp;view=FitH&amp;zoom=page-width" title="个人简历"></iframe>
+          <iframe data-pdf="assets/王施婕-简历.pdf" title="个人简历"></iframe>
         </div>
       </div>
     </div>
@@ -1552,15 +1549,12 @@ void main() {
       <div class="resume-modal__backdrop" data-portfolio-pdf-close></div>
       <div class="resume-modal__panel">
         <div class="resume-modal__actions">
-          <a href="assets/来疯移动端.pdf" download="来疯移动端.pdf" class="resume-modal__action resume-modal__action--download" title="下载 PDF" aria-label="下载 PDF">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          </a>
           <button type="button" class="resume-modal__action resume-modal__close" data-portfolio-pdf-close aria-label="关闭" title="关闭">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
         <div class="resume-modal__body">
-          <iframe src="assets/来疯移动端.pdf#toolbar=0&amp;navpanes=0&amp;statusbar=0&amp;messages=0&amp;view=FitH&amp;zoom=page-width" title="作品详情"></iframe>
+          <iframe data-pdf="assets/来疯移动端.pdf" title="作品详情"></iframe>
         </div>
       </div>
     </div>
@@ -1571,13 +1565,31 @@ void main() {
       var modal = document.getElementById('resumeModal');
       if (!modal) return;
 
+      // 把 PDF 包装成 Google Docs Viewer 嵌入 URL（浏览器原生 PDF 工具栏消失，包含下载按钮）
+      function buildPdfViewerUrl(pdfPath) {
+        var absoluteUrl;
+        try {
+          absoluteUrl = new URL(pdfPath, window.location.href).href;
+        } catch (e) {
+          absoluteUrl = window.location.origin + '/' + String(pdfPath).replace(/^\/+/, '');
+        }
+        return 'https://docs.google.com/gview?url=' + encodeURIComponent(absoluteUrl) + '&embedded=true';
+      }
+
       function openModal() {
         modal.classList.add('is-open');
         document.body.classList.add('resume-modal-open');
+        var iframe = modal.querySelector('iframe[data-pdf]');
+        if (iframe && !iframe.src) {
+          iframe.src = buildPdfViewerUrl(iframe.getAttribute('data-pdf'));
+        }
       }
       function closeModal() {
         modal.classList.remove('is-open');
         document.body.classList.remove('resume-modal-open');
+        // 关闭时清空 src，停止 PDF 渲染，避免后台持续下载
+        var iframe = modal.querySelector('iframe[data-pdf]');
+        if (iframe) iframe.src = '';
       }
 
       // 任意带 data-resume-trigger 的元素（Hero「关于我」、个人介绍「了解更多」等）都能打开弹窗
@@ -1597,27 +1609,6 @@ void main() {
           closeModal();
         }
       });
-
-      // 兜底：iframe 加载完后尝试用 CSS 隐藏 PDF 阅读器自带的工具栏/侧栏（同源 PDF.js 时有效）
-      var iframe = modal.querySelector('iframe');
-      if (iframe) {
-        iframe.addEventListener('load', function () {
-          try {
-            var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-            if (!doc) return;
-            var hideStyle = doc.createElement('style');
-            hideStyle.textContent = [
-              '#toolbar, #toolbarContainer, .toolbar, [data-element="toolbar"]{display:none!important;visibility:hidden!important;}',
-              '#sidebar, #sidebarContainer, .sidebar, [data-element="sidebar"]{display:none!important;visibility:hidden!important;}',
-              '#secondaryToolbar, #secondaryToolbarToggleButton{display:none!important;}',
-              'body{padding:0!important;margin:0!important;background:#1a1a1f!important;}'
-            ].join('\n');
-            (doc.head || doc.documentElement).appendChild(hideStyle);
-          } catch (err) {
-            // 跨域（如浏览器内置 PDF 阅读器）会抛错，忽略
-          }
-        });
-      }
     })();
     </script>
 
@@ -1627,13 +1618,29 @@ void main() {
       var modal = document.getElementById('portfolioPdfModal');
       if (!modal) return;
 
+      function buildPdfViewerUrl(pdfPath) {
+        var absoluteUrl;
+        try {
+          absoluteUrl = new URL(pdfPath, window.location.href).href;
+        } catch (e) {
+          absoluteUrl = window.location.origin + '/' + String(pdfPath).replace(/^\/+/, '');
+        }
+        return 'https://docs.google.com/gview?url=' + encodeURIComponent(absoluteUrl) + '&embedded=true';
+      }
+
       function openModal() {
         modal.classList.add('is-open');
         document.body.classList.add('resume-modal-open');
+        var iframe = modal.querySelector('iframe[data-pdf]');
+        if (iframe && !iframe.src) {
+          iframe.src = buildPdfViewerUrl(iframe.getAttribute('data-pdf'));
+        }
       }
       function closeModal() {
         modal.classList.remove('is-open');
         document.body.classList.remove('resume-modal-open');
+        var iframe = modal.querySelector('iframe[data-pdf]');
+        if (iframe) iframe.src = '';
       }
 
       // 触发器：手风琴 Aurora 面板等
@@ -1655,25 +1662,6 @@ void main() {
           closeModal();
         }
       });
-
-      // 兜底：iframe 加载完后尝试隐藏 PDF 阅读器工具栏/侧栏
-      var iframe = modal.querySelector('iframe');
-      if (iframe) {
-        iframe.addEventListener('load', function () {
-          try {
-            var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-            if (!doc) return;
-            var hideStyle = doc.createElement('style');
-            hideStyle.textContent = [
-              '#toolbar, #toolbarContainer, .toolbar, [data-element="toolbar"]{display:none!important;visibility:hidden!important;}',
-              '#sidebar, #sidebarContainer, .sidebar, [data-element="sidebar"]{display:none!important;visibility:hidden!important;}',
-              '#secondaryToolbar, #secondaryToolbarToggleButton{display:none!important;}',
-              'body{padding:0!important;margin:0!important;background:#1a1a1f!important;}'
-            ].join('\n');
-            (doc.head || doc.documentElement).appendChild(hideStyle);
-          } catch (err) {}
-        });
-      }
     })();
     </script>
 
