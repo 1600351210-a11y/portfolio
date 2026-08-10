@@ -455,6 +455,8 @@ opacity: 0;
   position: absolute;
   inset: 0;
   background: #14141a;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .resume-modal__body iframe {
   width: 100%;
@@ -462,6 +464,33 @@ opacity: 0;
   border: 0;
   display: block;
   background: #fff;
+}
+
+/* PDF.js 自渲染容器（替代 Google Docs Viewer，国内可直接访问） */
+.pdf-viewer {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 8px;
+  background: #14141a;
+}
+.pdf-viewer__status {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  padding: 24px 12px;
+  text-align: center;
+}
+.pdf-viewer__status--error { color: #ff8a8a; }
+.pdf-viewer__canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 body.resume-modal-open {
@@ -562,7 +591,7 @@ body.resume-modal-open {
           <!-- 头像 -->
           <div class="mb-8 flex justify-center opacity-0 animate-scale-in" style="animation-delay: 0.8s">
             <div class="relative parallax-scale" data-parallax="scale" data-scale-start="1" data-scale-end="1.2" style="transform: scale(1); transition: transform 0.1s ease-out;">
-  <img alt="王施婕" class="h-32 w-32 lg:h-40 lg:w-40 rounded-full object-cover ring-4 ring-white/20 shadow-2xl transition-all duration-300" src="assets/replacements/2-IMG_8713-3.JPG" style="transform: inherit; object-fit: cover; object-position: center center;">
+  <img alt="王施婕" class="h-32 w-32 lg:h-40 lg:w-40 rounded-full object-cover ring-4 ring-white/20 shadow-2xl transition-all duration-300" src="assets/replacements/2-IMG_8713-3.JPG" style="transform: inherit; object-fit: cover; object-position: center center;" loading="lazy" decoding="async">
 </div>
           </div>
 
@@ -732,7 +761,7 @@ body.resume-modal-open {
             <div class="flex flex-col gap-4">
               <!-- 卡通主图 -->
               <div class="rounded-2xl overflow-hidden border border-white/10 aspect-[4/3] bg-gradient-to-br from-orange-200/10 via-pink-200/5 to-blue-900/20">
-                <img src="assets/profile/main.png" alt="UI 设计师卡通形象" class="w-full h-full object-cover">
+                <img src="assets/profile/main.jpg" alt="UI 设计师卡通形象" class="w-full h-full object-cover" loading="lazy" decoding="async">
               </div>
             </div>
 
@@ -1539,7 +1568,9 @@ void main() {
           </button>
         </div>
         <div class="resume-modal__body">
-          <iframe data-pdf="assets/王施婕-简历.pdf" title="个人简历"></iframe>
+          <div class="pdf-viewer" data-pdf="assets/王施婕-简历.pdf">
+            <div class="pdf-viewer__status">正在准备 PDF 预览…</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1554,114 +1585,129 @@ void main() {
           </button>
         </div>
         <div class="resume-modal__body">
-          <iframe data-pdf="assets/来疯移动端.pdf" title="作品详情"></iframe>
+          <div class="pdf-viewer" data-pdf="assets/来疯移动端.pdf">
+            <div class="pdf-viewer__status">正在准备 PDF 预览…</div>
+          </div>
         </div>
       </div>
     </div>
 
     <script>
-    // === Resume Modal ===
+    // === PDF.js 本地化弹窗（替代 Google Docs Viewer，国内可直接访问） ===
     (function () {
-      var modal = document.getElementById('resumeModal');
-      if (!modal) return;
-
-      // 把 PDF 包装成 Google Docs Viewer 嵌入 URL（浏览器原生 PDF 工具栏消失，包含下载按钮）
-      function buildPdfViewerUrl(pdfPath) {
-        var absoluteUrl;
-        try {
-          absoluteUrl = new URL(pdfPath, window.location.href).href;
-        } catch (e) {
-          absoluteUrl = window.location.origin + '/' + String(pdfPath).replace(/^\/+/, '');
-        }
-        return 'https://docs.google.com/gview?url=' + encodeURIComponent(absoluteUrl) + '&embedded=true';
-      }
-
-      function openModal() {
-        modal.classList.add('is-open');
-        document.body.classList.add('resume-modal-open');
-        var iframe = modal.querySelector('iframe[data-pdf]');
-        if (iframe && !iframe.src) {
-          iframe.src = buildPdfViewerUrl(iframe.getAttribute('data-pdf'));
-        }
-      }
-      function closeModal() {
-        modal.classList.remove('is-open');
-        document.body.classList.remove('resume-modal-open');
-        // 关闭时清空 src，停止 PDF 渲染，避免后台持续下载
-        var iframe = modal.querySelector('iframe[data-pdf]');
-        if (iframe) iframe.src = '';
-      }
-
-      // 任意带 data-resume-trigger 的元素（Hero「关于我」、个人介绍「了解更多」等）都能打开弹窗
-      document.querySelectorAll('[data-resume-trigger]').forEach(function (el) {
-        el.addEventListener('click', function (e) {
-          e.preventDefault();
-          openModal();
+      // 单一 PDF.js 加载器：首次打开弹窗时按需加载，缓存复用
+      var pdfjsPromise = null;
+      function loadPdfJs() {
+        if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+        if (pdfjsPromise) return pdfjsPromise;
+        pdfjsPromise = new Promise(function (resolve, reject) {
+          var s = document.createElement('script');
+          s.src = 'assets/pdfjs/pdf.min.js';
+          s.async = true;
+          s.onload = function () {
+            if (!window.pdfjsLib) { reject(new Error('pdfjsLib not found')); return; }
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'assets/pdfjs/pdf.worker.min.js';
+            resolve(window.pdfjsLib);
+          };
+          s.onerror = function () { reject(new Error('pdf.min.js load failed')); };
+          document.head.appendChild(s);
         });
-      });
-
-      modal.querySelectorAll('[data-resume-close]').forEach(function (el) {
-        el.addEventListener('click', closeModal);
-      });
-
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modal.classList.contains('is-open')) {
-          closeModal();
-        }
-      });
-    })();
-    </script>
-
-    <script>
-    // === Portfolio PDF Modal (作品详情弹窗，复用 resume-modal 样式) ===
-    (function () {
-      var modal = document.getElementById('portfolioPdfModal');
-      if (!modal) return;
-
-      function buildPdfViewerUrl(pdfPath) {
-        var absoluteUrl;
-        try {
-          absoluteUrl = new URL(pdfPath, window.location.href).href;
-        } catch (e) {
-          absoluteUrl = window.location.origin + '/' + String(pdfPath).replace(/^\/+/, '');
-        }
-        return 'https://docs.google.com/gview?url=' + encodeURIComponent(absoluteUrl) + '&embedded=true';
+        return pdfjsPromise;
       }
 
-      function openModal() {
-        modal.classList.add('is-open');
-        document.body.classList.add('resume-modal-open');
-        var iframe = modal.querySelector('iframe[data-pdf]');
-        if (iframe && !iframe.src) {
-          iframe.src = buildPdfViewerUrl(iframe.getAttribute('data-pdf'));
-        }
-      }
-      function closeModal() {
-        modal.classList.remove('is-open');
-        document.body.classList.remove('resume-modal-open');
-        var iframe = modal.querySelector('iframe[data-pdf]');
-        if (iframe) iframe.src = '';
-      }
+      // 把 PDF 渲染成多个 <canvas>，附加到容器里
+      function renderPdf(container, pdfPath) {
+        var pdfjsLib = null;
+        var task = (async function () {
+          pdfjsLib = await loadPdfJs();
+          var loadingTask = pdfjsLib.getDocument({
+            url: pdfPath,
+            // 大文件按需流式拉取，降低移动端首屏负担
+            disableAutoFetch: false,
+            disableStream: false
+          });
+          var pdf = await loadingTask.promise;
+          // 自适应宽度：根据容器宽度决定 scale，移动端不需要很大
+          var containerWidth = container.clientWidth || 800;
+          var baseWidth = Math.min(containerWidth - 24, 1000);
+          var numPages = pdf.numPages;
+          for (var i = 1; i <= numPages; i++) {
+            var page = await pdf.getPage(i);
+            var unscaledViewport = page.getViewport({ scale: 1 });
+            var scale = Math.max(0.6, Math.min(2.4, baseWidth / unscaledViewport.width));
+            var viewport = page.getViewport({ scale: scale });
+            var canvas = document.createElement('canvas');
+            canvas.className = 'pdf-viewer__canvas';
+            canvas.width = Math.floor(viewport.width);
+            canvas.height = Math.floor(viewport.height);
+            container.appendChild(canvas);
+            var ctx = canvas.getContext('2d');
+            await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+          }
+        })();
 
-      // 触发器：手风琴 Aurora 面板等
-      document.querySelectorAll('[data-portfolio-pdf-trigger]').forEach(function (el) {
-        el.addEventListener('click', function (e) {
-          e.preventDefault();
-          openModal();
+        // 用 container 上的 status 节点显示进度
+        var status = container.querySelector('.pdf-viewer__status');
+        task.then(function () {
+          if (status && status.parentNode === container) container.removeChild(status);
+        }).catch(function (err) {
+          if (status) {
+            status.className = 'pdf-viewer__status pdf-viewer__status--error';
+            status.textContent = 'PDF 加载失败：' + (err && err.message ? err.message : err);
+          }
+          console.error('[pdf-viewer]', err);
         });
-      });
+      }
 
-      // 关闭：遮罩 + 关闭按钮
-      modal.querySelectorAll('[data-portfolio-pdf-close]').forEach(function (el) {
-        el.addEventListener('click', closeModal);
-      });
+      // 通用初始化：每个 .resume-modal 弹窗各自独立
+      function initModal(modal) {
+        if (!modal) return;
+        var viewer = modal.querySelector('.pdf-viewer[data-pdf]');
+        if (!viewer) return;
+        var opened = false;
 
-      // ESC 关闭
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modal.classList.contains('is-open')) {
-          closeModal();
+        function openModal() {
+          modal.classList.add('is-open');
+          document.body.classList.add('resume-modal-open');
+          if (!opened) {
+            opened = true;
+            renderPdf(viewer, viewer.getAttribute('data-pdf'));
+          }
         }
-      });
+        function closeModal() {
+          modal.classList.remove('is-open');
+          document.body.classList.remove('resume-modal-open');
+        }
+
+        // 触发器集合（两种弹窗各自识别自己的 trigger 元素）
+        var triggers = [];
+        if (modal.id === 'resumeModal') {
+          triggers = document.querySelectorAll('[data-resume-trigger]');
+        } else if (modal.id === 'portfolioPdfModal') {
+          triggers = document.querySelectorAll('[data-portfolio-pdf-trigger]');
+        }
+        triggers.forEach(function (el) {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            openModal();
+          });
+        });
+
+        // 关闭：遮罩 + 关闭按钮（按弹窗 id 取对应 data-* 关闭器）
+        var closeAttr = modal.id === 'resumeModal' ? 'data-resume-close' : 'data-portfolio-pdf-close';
+        modal.querySelectorAll('[' + closeAttr + ']').forEach(function (el) {
+          el.addEventListener('click', closeModal);
+        });
+
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && modal.classList.contains('is-open')) {
+            closeModal();
+          }
+        });
+      }
+
+      initModal(document.getElementById('resumeModal'));
+      initModal(document.getElementById('portfolioPdfModal'));
     })();
     </script>
 
